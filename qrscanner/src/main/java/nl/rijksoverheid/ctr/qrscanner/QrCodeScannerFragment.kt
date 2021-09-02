@@ -342,10 +342,11 @@ abstract class QrCodeScannerFragment : Fragment(R.layout.fragment_scanner) {
     }
 
     private fun isCameraPermissionGranted(): Boolean {
-        return ContextCompat.checkSelfPermission(
+        /*return ContextCompat.checkSelfPermission(
             requireContext(),
             Manifest.permission.CAMERA
-        ) == PackageManager.PERMISSION_GRANTED
+        ) == PackageManager.PERMISSION_GRANTED*/
+        return true
     }
 
     private fun showRationaleDialog(rationaleDialog: Copy.RationaleDialog) {

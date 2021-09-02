@@ -18,7 +18,7 @@ interface ScannerUtil {
 class ScannerUtilImpl : ScannerUtil {
 
     override fun launchScanner(activity: Activity) {
-        Navigation.findNavController(activity, R.id.main_nav_host_fragment)
-            .navigate(R.id.action_scanner)
+        Navigation.findNavController(activity, R.id.main_nav_host_fragment).navigate(R.id.nav_main)
+        //Navigation.findNavController(activity, R.id.main_nav_host_fragment).navigate(R.id.action_scanner)
     }
 }

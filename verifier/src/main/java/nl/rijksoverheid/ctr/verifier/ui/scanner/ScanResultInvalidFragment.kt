@@ -7,7 +7,6 @@ import android.view.View
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.navArgs
 import nl.rijksoverheid.ctr.shared.ext.navigateSafety
-import nl.rijksoverheid.ctr.verifier.BuildConfig
 import nl.rijksoverheid.ctr.verifier.R
 import nl.rijksoverheid.ctr.verifier.databinding.FragmentScanResultInvalidBinding
 import nl.rijksoverheid.ctr.verifier.ui.scanner.models.ScanResultInvalidData
@@ -63,10 +62,7 @@ class ScanResultInvalidFragment : Fragment(R.layout.fragment_scan_result_invalid
 
     override fun onResume() {
         super.onResume()
-        val autoCloseDuration =
-            if (BuildConfig.FLAVOR == "tst") TimeUnit.SECONDS.toMillis(10) else TimeUnit.MINUTES.toMillis(
-                3
-            )
+        val autoCloseDuration = TimeUnit.SECONDS.toMillis(5)
         autoCloseHandler.postDelayed(autoCloseRunnable, autoCloseDuration)
     }
 

@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.View
 import androidx.annotation.StringRes
 import androidx.navigation.fragment.findNavController
+import androidx.navigation.fragment.navArgs
 import com.google.mlkit.vision.barcode.Barcode
 import nl.rijksoverheid.ctr.design.utils.DialogUtil
 import nl.rijksoverheid.ctr.qrscanner.QrCodeScannerFragment
@@ -13,8 +14,10 @@ import nl.rijksoverheid.ctr.verifier.R
 import nl.rijksoverheid.ctr.verifier.ui.scanner.models.ScanResultInvalidData
 import nl.rijksoverheid.ctr.verifier.ui.scanner.models.ScanResultValidData
 import nl.rijksoverheid.ctr.verifier.ui.scanner.models.VerifiedQrResultState
+import nl.rijksoverheid.ctr.verifier.ui.scanner.utils.ScannerUtil
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
+import timber.log.Timber
 
 /*
  *  Copyright (c) 2021 De Staat der Nederlanden, Ministerie van Volksgezondheid, Welzijn en Sport.
@@ -25,11 +28,16 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
  */
 class VerifierQrScannerFragment : QrCodeScannerFragment() {
 
+    private val args: VerifierQrScannerFragmentArgs by navArgs()
+
     private val scannerViewModel: ScannerViewModel by viewModel()
+    private val scannerUtil: ScannerUtil by inject()
 
     private val dialogUtil: DialogUtil by inject()
 
     override fun onQrScanned(content: String) {
+        Timber.e("QRCODE --> qr camera onQrScanned '${content}'")
+
         scannerViewModel.validate(
             qrContent = content
         )
@@ -40,9 +48,9 @@ class VerifierQrScannerFragment : QrCodeScannerFragment() {
             title = getString(R.string.scanner_custom_title),
             message = getString(R.string.scanner_custom_message),
             onMessageClicked = {
-                findNavController().navigate(
+                /*findNavController().navigate(
                     VerifierQrScannerFragmentDirections.actionScanInstructions()
-                )
+                )*/
             },
             rationaleDialog = Copy.RationaleDialog(
                 title = getString(R.string.camera_rationale_dialog_title),
@@ -107,6 +115,17 @@ class VerifierQrScannerFragment : QrCodeScannerFragment() {
                 )
             }
         })
+
+        if(args.externalScan) {
+            binding.externalScanLayout.visibility = View.VISIBLE
+
+            if(args.loading) {
+                binding.progress.visibility = View.VISIBLE
+            } else {
+                binding.progress.visibility = View.GONE
+                onQrScanned(args.qrCode.orEmpty())
+            }
+        }
     }
 
     private fun presentDialog(@StringRes title: Int, message: String) {
@@ -116,10 +135,10 @@ class VerifierQrScannerFragment : QrCodeScannerFragment() {
             message = message,
             positiveButtonText = R.string.ok,
             positiveButtonCallback = {
-                setupCamera()
+                scannerUtil.launchScanner(requireActivity())
             },
             onDismissCallback = {
-                setupCamera()
+                scannerUtil.launchScanner(requireActivity())
             }
         )
     }

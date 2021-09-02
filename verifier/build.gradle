@@ -37,10 +37,10 @@ android {
 
     signingConfigs {
         release {
-            storeFile file('../keystore.jks')
-            storePassword System.getenv("KEYSTORE_PASSWORD")
-            keyAlias System.getenv("KEYSTORE_KEY_ALIAS")
-            keyPassword System.getenv("KEYSTORE_KEY_PASSWORD")
+            storeFile file('../keystore/ticketscan.jks')
+            storePassword "aCu2g4yAfEtzG4t"
+            keyAlias "ticketscan"
+            keyPassword "aCu2g4yAfEtzG4t"
         }
     }
 
@@ -116,6 +116,7 @@ dependencies {
     testImplementation("com.schibsted.spain:barista:$barista_version") {
         exclude group: "org.jetbrains.kotlin"
     }
+    implementation 'com.github.mik3y:usb-serial-for-android:3.4.2'
     testImplementation "io.insert-koin:koin-test-junit4:$koin_version"
     testImplementation "androidx.navigation:navigation-testing:$navigation_version"
 

@@ -10,6 +10,22 @@
         android:name="nl.rijksoverheid.ctr.verifier.ui.scanner.VerifierQrScannerFragment"
         tools:layout="@layout/fragment_scanner">
 
+        <argument
+            android:name="qrCode"
+            android:defaultValue="@null"
+            app:argType="string"
+            app:nullable="true" />
+
+        <argument
+            android:name="externalScan"
+            android:defaultValue="false"
+            app:argType="boolean" />
+
+        <argument
+            android:name="loading"
+            android:defaultValue="false"
+            app:argType="boolean" />
+
         <action
             android:id="@+id/action_scan_result_valid"
             app:destination="@id/nav_scan_result_valid"

@@ -11,7 +11,6 @@ import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import nl.rijksoverheid.ctr.shared.ext.navigateSafety
 import nl.rijksoverheid.ctr.shared.utils.PersonalDetailsUtil
-import nl.rijksoverheid.ctr.verifier.BuildConfig
 import nl.rijksoverheid.ctr.verifier.R
 import nl.rijksoverheid.ctr.verifier.databinding.FragmentScanResultValidBinding
 import nl.rijksoverheid.ctr.verifier.ui.scanner.models.ScanResultValidData
@@ -110,10 +109,7 @@ class ScanResultValidFragment : Fragment(R.layout.fragment_scan_result_valid) {
 
     override fun onResume() {
         super.onResume()
-        val autoCloseDuration =
-            if (BuildConfig.FLAVOR == "tst") TimeUnit.SECONDS.toMillis(10) else TimeUnit.MINUTES.toMillis(
-                3
-            )
+        val autoCloseDuration = TimeUnit.SECONDS.toMillis(5)
         autoCloseHandler.postDelayed(autoCloseRunnable, autoCloseDuration)
         transitionPersonalDetailsHandler.postDelayed(
             transitionPersonalDetailsRunnable,

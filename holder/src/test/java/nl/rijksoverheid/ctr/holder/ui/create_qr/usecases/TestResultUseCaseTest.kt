@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import nl.rijksoverheid.ctr.holder.*
 import nl.rijksoverheid.ctr.holder.ui.create_qr.models.*
 import nl.rijksoverheid.ctr.holder.ui.create_qr.repositories.TestProviderRepository
+import nl.rijksoverheid.ctr.shared.models.NetworkRequestResult
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,15 +27,8 @@ class TestResultUseCaseTest {
         val usecase = TestResultUseCase(
             configProviderUseCase = fakeConfigProviderUseCase(),
             testProviderRepository = fakeTestProviderRepository(),
-            coronaCheckRepository = fakeCoronaCheckRepository(),
-            commitmentMessageUseCase = fakeCommitmentMessageUsecase(),
-            secretKeyUseCase = fakeSecretKeyUseCase(),
-            createCredentialUseCase = fakeCreateCredentialUseCase(),
-            personalDetailsUtil = fakePersonalDetailsUtil(),
-            cachedAppConfigUseCase = fakeCachedAppConfigUseCase(),
-            testResultUtil = fakeTestResultUtil(),
             tokenValidatorUtil = fakeTokenValidatorUtil(),
-            testResultAttributesUseCase = fakeTestResultAttributesUseCase()
+            configUseCase = fakeCachedAppConfigUseCase(),
         )
         val result = usecase.testResult(uniqueCode = "dummy")
         assertTrue(result is TestResult.InvalidToken)
@@ -45,15 +39,8 @@ class TestResultUseCaseTest {
         val usecase = TestResultUseCase(
             configProviderUseCase = fakeConfigProviderUseCase(),
             testProviderRepository = fakeTestProviderRepository(),
-            coronaCheckRepository = fakeCoronaCheckRepository(),
-            commitmentMessageUseCase = fakeCommitmentMessageUsecase(),
-            secretKeyUseCase = fakeSecretKeyUseCase(),
-            createCredentialUseCase = fakeCreateCredentialUseCase(),
-            personalDetailsUtil = fakePersonalDetailsUtil(),
-            cachedAppConfigUseCase = fakeCachedAppConfigUseCase(),
-            testResultUtil = fakeTestResultUtil(),
             tokenValidatorUtil = fakeTokenValidatorUtil(),
-            testResultAttributesUseCase = fakeTestResultAttributesUseCase()
+            configUseCase = fakeCachedAppConfigUseCase(),
         )
         val result = usecase.testResult(uniqueCode = "dummy-dummy")
         assertTrue(result is TestResult.InvalidToken)
@@ -64,17 +51,10 @@ class TestResultUseCaseTest {
         val usecase = TestResultUseCase(
             configProviderUseCase = fakeConfigProviderUseCase(),
             testProviderRepository = fakeTestProviderRepository(),
-            coronaCheckRepository = fakeCoronaCheckRepository(),
-            commitmentMessageUseCase = fakeCommitmentMessageUsecase(),
-            secretKeyUseCase = fakeSecretKeyUseCase(),
-            createCredentialUseCase = fakeCreateCredentialUseCase(),
-            personalDetailsUtil = fakePersonalDetailsUtil(),
-            cachedAppConfigUseCase = fakeCachedAppConfigUseCase(),
-            testResultUtil = fakeTestResultUtil(),
             tokenValidatorUtil = fakeTokenValidatorUtil(
                 isValid = false
             ),
-            testResultAttributesUseCase = fakeTestResultAttributesUseCase()
+            configUseCase = fakeCachedAppConfigUseCase(),
         )
         val result = usecase.testResult(uniqueCode = "provider-B-t1")
         assertTrue(result is TestResult.InvalidToken)
@@ -85,15 +65,8 @@ class TestResultUseCaseTest {
         val usecase = TestResultUseCase(
             configProviderUseCase = fakeConfigProviderUseCase(),
             testProviderRepository = fakeTestProviderRepository(),
-            coronaCheckRepository = fakeCoronaCheckRepository(),
-            commitmentMessageUseCase = fakeCommitmentMessageUsecase(),
-            secretKeyUseCase = fakeSecretKeyUseCase(),
-            createCredentialUseCase = fakeCreateCredentialUseCase(),
-            personalDetailsUtil = fakePersonalDetailsUtil(),
-            cachedAppConfigUseCase = fakeCachedAppConfigUseCase(),
-            testResultUtil = fakeTestResultUtil(),
             tokenValidatorUtil = fakeTokenValidatorUtil(),
-            testResultAttributesUseCase = fakeTestResultAttributesUseCase()
+            configUseCase = fakeCachedAppConfigUseCase(),
         )
         val result = usecase.testResult(uniqueCode = "provider-B-t1")
         assertTrue(result is TestResult.InvalidToken)
@@ -105,23 +78,16 @@ class TestResultUseCaseTest {
             val providerIdentifier = "provider"
             val usecase = TestResultUseCase(
                 configProviderUseCase = fakeConfigProviderUseCase(
-                    provider = getRemoteTestProvider(
+                    testProviders = listOf(getRemoteTestProvider(
                         identifier = providerIdentifier
-                    )
+                    ))
                 ),
                 testProviderRepository = fakeTestProviderRepository(
                     model =
                     getRemoteTestResult(status = RemoteProtocol.Status.COMPLETE)
                 ),
-                coronaCheckRepository = fakeCoronaCheckRepository(),
-                commitmentMessageUseCase = fakeCommitmentMessageUsecase(),
-                secretKeyUseCase = fakeSecretKeyUseCase(),
-                createCredentialUseCase = fakeCreateCredentialUseCase(),
-                personalDetailsUtil = fakePersonalDetailsUtil(),
-                cachedAppConfigUseCase = fakeCachedAppConfigUseCase(),
-                testResultUtil = fakeTestResultUtil(),
                 tokenValidatorUtil = fakeTokenValidatorUtil(),
-                testResultAttributesUseCase = fakeTestResultAttributesUseCase()
+                configUseCase = fakeCachedAppConfigUseCase(),
             )
             val result = usecase.testResult(uniqueCode = "$providerIdentifier-B-t1")
             assertTrue(result is TestResult.NegativeTestResult)
@@ -133,25 +99,18 @@ class TestResultUseCaseTest {
             val providerIdentifier = "provider"
             val usecase = TestResultUseCase(
                 configProviderUseCase = fakeConfigProviderUseCase(
-                    provider = getRemoteTestProvider(
+                    testProviders = listOf(getRemoteTestProvider(
                         identifier = providerIdentifier
                     )
-                ),
+                )),
                 testProviderRepository = fakeTestProviderRepository(
                     model = getRemoteTestResult(
                         status = RemoteProtocol.Status.COMPLETE,
                         negativeResult = false
                     )
                 ),
-                coronaCheckRepository = fakeCoronaCheckRepository(),
-                commitmentMessageUseCase = fakeCommitmentMessageUsecase(),
-                secretKeyUseCase = fakeSecretKeyUseCase(),
-                createCredentialUseCase = fakeCreateCredentialUseCase(),
-                personalDetailsUtil = fakePersonalDetailsUtil(),
-                cachedAppConfigUseCase = fakeCachedAppConfigUseCase(),
-                testResultUtil = fakeTestResultUtil(),
                 tokenValidatorUtil = fakeTokenValidatorUtil(),
-                testResultAttributesUseCase = fakeTestResultAttributesUseCase()
+                configUseCase = fakeCachedAppConfigUseCase(),
             )
             val result = usecase.testResult(uniqueCode = "$providerIdentifier-B-t1")
             assertTrue(result is TestResult.NoNegativeTestResult)
@@ -163,23 +122,16 @@ class TestResultUseCaseTest {
             val providerIdentifier = "provider"
             val usecase = TestResultUseCase(
                 configProviderUseCase = fakeConfigProviderUseCase(
-                    provider = getRemoteTestProvider(
+                    testProviders = listOf(getRemoteTestProvider(
                         identifier = providerIdentifier
                     )
-                ),
+                )),
                 testProviderRepository = fakeTestProviderRepository(
                     model =
                     getRemoteTestResult(status = RemoteProtocol.Status.VERIFICATION_REQUIRED)
                 ),
-                coronaCheckRepository = fakeCoronaCheckRepository(),
-                commitmentMessageUseCase = fakeCommitmentMessageUsecase(),
-                secretKeyUseCase = fakeSecretKeyUseCase(),
-                createCredentialUseCase = fakeCreateCredentialUseCase(),
-                personalDetailsUtil = fakePersonalDetailsUtil(),
-                cachedAppConfigUseCase = fakeCachedAppConfigUseCase(),
-                testResultUtil = fakeTestResultUtil(),
                 tokenValidatorUtil = fakeTokenValidatorUtil(),
-                testResultAttributesUseCase = fakeTestResultAttributesUseCase()
+                configUseCase = fakeCachedAppConfigUseCase(),
             )
             val result = usecase.testResult(uniqueCode = "$providerIdentifier-B-t1")
             assertTrue(result is TestResult.VerificationRequired)
@@ -191,23 +143,16 @@ class TestResultUseCaseTest {
             val providerIdentifier = "provider"
             val usecase = TestResultUseCase(
                 configProviderUseCase = fakeConfigProviderUseCase(
-                    provider = getRemoteTestProvider(
+                    testProviders = listOf(getRemoteTestProvider(
                         identifier = providerIdentifier
                     )
-                ),
+                )),
                 testProviderRepository = fakeTestProviderRepository(
                     model =
                     getRemoteTestResult(status = RemoteProtocol.Status.INVALID_TOKEN)
                 ),
-                coronaCheckRepository = fakeCoronaCheckRepository(),
-                commitmentMessageUseCase = fakeCommitmentMessageUsecase(),
-                secretKeyUseCase = fakeSecretKeyUseCase(),
-                createCredentialUseCase = fakeCreateCredentialUseCase(),
-                personalDetailsUtil = fakePersonalDetailsUtil(),
-                cachedAppConfigUseCase = fakeCachedAppConfigUseCase(),
-                testResultUtil = fakeTestResultUtil(),
                 tokenValidatorUtil = fakeTokenValidatorUtil(),
-                testResultAttributesUseCase = fakeTestResultAttributesUseCase()
+                configUseCase = fakeCachedAppConfigUseCase(),
             )
             val result = usecase.testResult(uniqueCode = "$providerIdentifier-B-t1")
             assertTrue(result is TestResult.InvalidToken)
@@ -219,10 +164,10 @@ class TestResultUseCaseTest {
             val providerIdentifier = "provider"
             val usecase = TestResultUseCase(
                 configProviderUseCase = fakeConfigProviderUseCase(
-                    provider = getRemoteTestProvider(
+                    testProviders = listOf(getRemoteTestProvider(
                         identifier = providerIdentifier
                     )
-                ),
+                )),
                 testProviderRepository = fakeTestProviderRepository(
                     remoteTestResultExceptionCallback = {
                         throw HttpException(
@@ -231,18 +176,11 @@ class TestResultUseCaseTest {
                             )
                         )
                     }),
-                coronaCheckRepository = fakeCoronaCheckRepository(),
-                commitmentMessageUseCase = fakeCommitmentMessageUsecase(),
-                secretKeyUseCase = fakeSecretKeyUseCase(),
-                createCredentialUseCase = fakeCreateCredentialUseCase(),
-                personalDetailsUtil = fakePersonalDetailsUtil(),
-                cachedAppConfigUseCase = fakeCachedAppConfigUseCase(),
-                testResultUtil = fakeTestResultUtil(),
                 tokenValidatorUtil = fakeTokenValidatorUtil(),
-                testResultAttributesUseCase = fakeTestResultAttributesUseCase()
+                configUseCase = fakeCachedAppConfigUseCase(),
             )
             val result = usecase.testResult(uniqueCode = "$providerIdentifier-B-t1")
-            assertTrue(result is TestResult.ServerError)
+            assertTrue(result is TestResult.Error)
         }
 
     @Test
@@ -251,32 +189,26 @@ class TestResultUseCaseTest {
             val providerIdentifier = "provider"
             val usecase = TestResultUseCase(
                 configProviderUseCase = fakeConfigProviderUseCase(
-                    provider = getRemoteTestProvider(
+                    testProviders = listOf(getRemoteTestProvider(
                         identifier = providerIdentifier
                     )
-                ),
+                )),
                 testProviderRepository = object : TestProviderRepository {
                     override suspend fun remoteTestResult(
                         url: String,
                         token: String,
+                        provider: String,
                         verifierCode: String?,
                         signingCertificateBytes: ByteArray
-                    ): SignedResponseWithModel<RemoteProtocol> {
+                    ): NetworkRequestResult<SignedResponseWithModel<RemoteProtocol>> {
                         throw IOException()
                     }
                 },
-                coronaCheckRepository = fakeCoronaCheckRepository(),
-                commitmentMessageUseCase = fakeCommitmentMessageUsecase(),
-                secretKeyUseCase = fakeSecretKeyUseCase(),
-                createCredentialUseCase = fakeCreateCredentialUseCase(),
-                personalDetailsUtil = fakePersonalDetailsUtil(),
-                cachedAppConfigUseCase = fakeCachedAppConfigUseCase(),
-                testResultUtil = fakeTestResultUtil(),
                 tokenValidatorUtil = fakeTokenValidatorUtil(),
-                testResultAttributesUseCase = fakeTestResultAttributesUseCase()
+                configUseCase = fakeCachedAppConfigUseCase(),
             )
             val result = usecase.testResult(uniqueCode = "$providerIdentifier-B-t1")
-            assertTrue(result is TestResult.NetworkError)
+            assertTrue(result is TestResult.Error)
         }
 
     @Test
@@ -285,23 +217,16 @@ class TestResultUseCaseTest {
             val providerIdentifier = "provider"
             val usecase = TestResultUseCase(
                 configProviderUseCase = fakeConfigProviderUseCase(
-                    provider = getRemoteTestProvider(
+                    testProviders = listOf(getRemoteTestProvider(
                         identifier = providerIdentifier
                     )
-                ),
+                )),
                 testProviderRepository = fakeTestProviderRepository(
                     model =
                     getRemoteTestResult(status = RemoteProtocol.Status.PENDING)
                 ),
-                coronaCheckRepository = fakeCoronaCheckRepository(),
-                commitmentMessageUseCase = fakeCommitmentMessageUsecase(),
-                secretKeyUseCase = fakeSecretKeyUseCase(),
-                createCredentialUseCase = fakeCreateCredentialUseCase(),
-                personalDetailsUtil = fakePersonalDetailsUtil(),
-                cachedAppConfigUseCase = fakeCachedAppConfigUseCase(),
-                testResultUtil = fakeTestResultUtil(),
                 tokenValidatorUtil = fakeTokenValidatorUtil(),
-                testResultAttributesUseCase = fakeTestResultAttributesUseCase()
+                configUseCase = fakeCachedAppConfigUseCase(),
             )
             val result = usecase.testResult(uniqueCode = "$providerIdentifier-B-t1")
             assertTrue(result is TestResult.Pending)

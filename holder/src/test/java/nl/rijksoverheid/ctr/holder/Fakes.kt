@@ -1,21 +1,30 @@
 package nl.rijksoverheid.ctr.holder
 
 import androidx.lifecycle.MutableLiveData
+import androidx.room.DatabaseConfiguration
+import androidx.room.InvalidationTracker
+import androidx.sqlite.db.SupportSQLiteOpenHelper
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import io.mockk.mockk
 import nl.rijksoverheid.ctr.appconfig.AppConfigViewModel
 import nl.rijksoverheid.ctr.appconfig.api.model.HolderConfig
 import nl.rijksoverheid.ctr.appconfig.models.AppStatus
 import nl.rijksoverheid.ctr.holder.persistence.CachedAppConfigUseCase
 import nl.rijksoverheid.ctr.holder.persistence.PersistenceManager
+import nl.rijksoverheid.ctr.holder.persistence.database.HolderDatabase
+import nl.rijksoverheid.ctr.holder.persistence.database.dao.*
+import nl.rijksoverheid.ctr.holder.persistence.database.entities.EventGroupEntity
 import nl.rijksoverheid.ctr.holder.persistence.database.entities.GreenCardType
+import nl.rijksoverheid.ctr.holder.persistence.database.entities.OriginType
+import nl.rijksoverheid.ctr.holder.persistence.database.models.GreenCard
+import nl.rijksoverheid.ctr.holder.persistence.database.usecases.*
 import nl.rijksoverheid.ctr.holder.ui.create_qr.CommercialTestCodeViewModel
 import nl.rijksoverheid.ctr.holder.ui.create_qr.models.*
 import nl.rijksoverheid.ctr.holder.ui.create_qr.repositories.CoronaCheckRepository
 import nl.rijksoverheid.ctr.holder.ui.create_qr.repositories.EventProviderRepository
 import nl.rijksoverheid.ctr.holder.ui.create_qr.repositories.TestProviderRepository
-import nl.rijksoverheid.ctr.holder.ui.create_qr.usecases.CommitmentMessageUseCase
-import nl.rijksoverheid.ctr.holder.ui.create_qr.usecases.ConfigProvidersUseCase
-import nl.rijksoverheid.ctr.holder.ui.create_qr.usecases.CreateCredentialUseCase
-import nl.rijksoverheid.ctr.holder.ui.create_qr.usecases.SecretKeyUseCase
+import nl.rijksoverheid.ctr.holder.ui.create_qr.usecases.*
+import nl.rijksoverheid.ctr.holder.ui.create_qr.util.GreenCardUtil
 import nl.rijksoverheid.ctr.holder.ui.myoverview.MyOverviewViewModel
 import nl.rijksoverheid.ctr.holder.ui.myoverview.usecases.TestResultAttributesUseCase
 import nl.rijksoverheid.ctr.holder.ui.myoverview.utils.TokenValidatorUtil
@@ -198,26 +207,27 @@ fun fakeTestProviderRepository(
         override suspend fun remoteTestResult(
             url: String,
             token: String,
+            provider: String,
             verifierCode: String?,
             signingCertificateBytes: ByteArray
-        ): SignedResponseWithModel<RemoteProtocol> {
+        ): NetworkRequestResult<SignedResponseWithModel<RemoteProtocol>> {
             remoteTestResultExceptionCallback?.invoke()
-            return model
+            return NetworkRequestResult.Success(model)
         }
     }
 }
 
 fun fakeConfigProviderUseCase(
     eventProviders: List<RemoteConfigProviders.EventProvider> = listOf(),
-    provider: RemoteConfigProviders.TestProvider? = null
+    testProviders: List<RemoteConfigProviders.TestProvider> = listOf()
 ): ConfigProvidersUseCase {
     return object : ConfigProvidersUseCase {
-        override suspend fun eventProviders(): List<RemoteConfigProviders.EventProvider> {
-            return eventProviders
+        override suspend fun eventProviders(): EventProvidersResult {
+            return EventProvidersResult.Success(eventProviders)
         }
 
-        override suspend fun testProvider(id: String): RemoteConfigProviders.TestProvider? {
-            return provider
+        override suspend fun testProviders(): TestProvidersResult {
+            return TestProvidersResult.Success(testProviders)
         }
     }
 }
@@ -240,24 +250,24 @@ fun fakeCoronaCheckRepository(
 ): CoronaCheckRepository {
     return object : CoronaCheckRepository {
 
-        override suspend fun configProviders(): RemoteConfigProviders {
-            return testProviders
+        override suspend fun configProviders(): NetworkRequestResult<RemoteConfigProviders> {
+            return NetworkRequestResult.Success(testProviders)
         }
 
-        override suspend fun accessTokens(tvsToken: String): RemoteAccessTokens {
-            return accessTokens
+        override suspend fun accessTokens(jwt: String): NetworkRequestResult<RemoteAccessTokens> {
+            return NetworkRequestResult.Success(accessTokens)
         }
 
         override suspend fun getGreenCards(
             stoken: String,
             events: List<String>,
             issueCommitmentMessage: String
-        ): RemoteGreenCards {
-            return remoteCredentials
+        ): NetworkRequestResult<RemoteGreenCards> {
+            return NetworkRequestResult.Success(remoteCredentials)
         }
 
-        override suspend fun getPrepareIssue(): RemotePrepareIssue {
-            return prepareIssue
+        override suspend fun getPrepareIssue(): NetworkRequestResult<RemotePrepareIssue> {
+            return NetworkRequestResult.Success(prepareIssue)
         }
 
         override suspend fun getCoupling(
@@ -427,13 +437,15 @@ fun fakeMobileCoreWrapper(): MobileCoreWrapper {
 }
 
 fun fakeEventProviderRepository(
-    unomi: ((url: String) -> RemoteUnomi) = { RemoteUnomi("", "", false) },
-    events: ((url: String) -> SignedResponseWithModel<RemoteProtocol3>) = {
-        SignedResponseWithModel(
-            "".toByteArray(),
-            RemoteProtocol3(
-                "", "", RemoteProtocol.Status.COMPLETE, null, listOf()
-            ),
+    unomi: ((url: String) -> NetworkRequestResult<RemoteUnomi>) = { NetworkRequestResult.Success(RemoteUnomi("", "", false)) },
+    events: ((url: String) -> NetworkRequestResult<SignedResponseWithModel<RemoteProtocol3>>) = {
+        NetworkRequestResult.Success(
+            SignedResponseWithModel(
+                "".toByteArray(),
+                RemoteProtocol3(
+                    "", "", RemoteProtocol.Status.COMPLETE, null, listOf()
+                ),
+            )
         )
     },
 ) = object : EventProviderRepository {
@@ -441,8 +453,9 @@ fun fakeEventProviderRepository(
         url: String,
         token: String,
         filter: String,
-        signingCertificateBytes: ByteArray
-    ): RemoteUnomi {
+        signingCertificateBytes: ByteArray,
+        provider: String,
+    ): NetworkRequestResult<RemoteUnomi> {
         return unomi.invoke(url)
     }
 
@@ -450,11 +463,56 @@ fun fakeEventProviderRepository(
         url: String,
         token: String,
         signingCertificateBytes: ByteArray,
-        filter: String
-    ): SignedResponseWithModel<RemoteProtocol3> {
+        filter: String,
+        provider: String,
+    ): NetworkRequestResult<SignedResponseWithModel<RemoteProtocol3>> {
         return events.invoke(url)
     }
-
 }
+
+fun fakeGreenCardUtil(
+    isExpired: Boolean = false,
+    expireDate: OffsetDateTime = OffsetDateTime.now(),
+    errorCorrectionLevel: ErrorCorrectionLevel = ErrorCorrectionLevel.H,
+    isExpiring: Boolean = false,
+    hasNoActiveCredentials: Boolean = false
+) = object: GreenCardUtil {
+    override fun isExpired(greenCard: GreenCard): Boolean {
+        return isExpired
+    }
+
+    override fun getExpireDate(greenCard: GreenCard): OffsetDateTime {
+        return expireDate
+    }
+
+    override fun getErrorCorrectionLevel(greenCardType: GreenCardType): ErrorCorrectionLevel {
+        return errorCorrectionLevel
+    }
+
+    override fun isExpiring(renewalDays: Long, greenCard: GreenCard): Boolean {
+        return isExpiring
+    }
+
+    override fun hasNoActiveCredentials(greenCard: GreenCard): Boolean {
+        return hasNoActiveCredentials
+    }
+}
+
+fun fakeGetRemoteGreenCardUseCase(result: RemoteGreenCardsResult = RemoteGreenCardsResult.Success(
+    RemoteGreenCards(null, null)
+)) = object: GetRemoteGreenCardsUseCase {
+    override suspend fun get(events: List<EventGroupEntity>): RemoteGreenCardsResult {
+        return result
+    }
+}
+
+fun fakeSyncRemoteGreenCardUseCase(
+    result: SyncRemoteGreenCardsResult = SyncRemoteGreenCardsResult.Success,
+) = object: SyncRemoteGreenCardsUseCase {
+    override suspend fun execute(remoteGreenCards: RemoteGreenCards): SyncRemoteGreenCardsResult {
+        return result
+    }
+}
+
 
 

@@ -11,13 +11,14 @@ package nl.rijksoverheid.ctr.holder.ui.create_qr
 import android.os.Bundle
 import android.view.View
 import androidx.activity.OnBackPressedCallback
-import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.navArgs
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import nl.rijksoverheid.ctr.design.ext.formatDateTime
 import nl.rijksoverheid.ctr.design.ext.formatDayMonthYear
 import nl.rijksoverheid.ctr.design.ext.formatMonth
 import nl.rijksoverheid.ctr.design.utils.DialogUtil
+import nl.rijksoverheid.ctr.holder.BaseFragment
+import nl.rijksoverheid.ctr.holder.HolderFlow
 import nl.rijksoverheid.ctr.holder.HolderMainFragment
 import nl.rijksoverheid.ctr.holder.R
 import nl.rijksoverheid.ctr.holder.databinding.FragmentYourEventsBinding
@@ -31,6 +32,7 @@ import nl.rijksoverheid.ctr.holder.ui.create_qr.util.RemoteEventUtil
 import nl.rijksoverheid.ctr.holder.ui.create_qr.util.RemoteProtocol3Util
 import nl.rijksoverheid.ctr.shared.ext.navigateSafety
 import nl.rijksoverheid.ctr.shared.livedata.EventObserver
+import nl.rijksoverheid.ctr.shared.models.Flow
 import nl.rijksoverheid.ctr.shared.utils.PersonalDetailsUtil
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
@@ -40,8 +42,9 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import java.util.*
 
-class YourEventsFragment : Fragment(R.layout.fragment_your_events) {
+class YourEventsFragment : BaseFragment(R.layout.fragment_your_events) {
 
     private val args: YourEventsFragmentArgs by navArgs()
 
@@ -49,10 +52,56 @@ class YourEventsFragment : Fragment(R.layout.fragment_your_events) {
     private val personalDetailsUtil: PersonalDetailsUtil by inject()
     private val infoScreenUtil: InfoScreenUtil by inject()
     private val dialogUtil: DialogUtil by inject()
+
     private val remoteProtocol3Util: RemoteProtocol3Util by inject()
     private val remoteEventUtil: RemoteEventUtil by inject()
 
     private val yourEventsViewModel: YourEventsViewModel by viewModel()
+
+    override fun onButtonClickWithRetryAction() {
+        when (val type = args.type) {
+            is YourEventsFragmentType.TestResult2 -> {
+                yourEventsViewModel.saveNegativeTest2(
+                    negativeTest2 = type.remoteTestResult,
+                    rawResponse = type.rawResponse
+                )
+            }
+            is YourEventsFragmentType.RemoteProtocol3Type -> {
+                yourEventsViewModel.checkForConflictingEvents(
+                    remoteProtocols3 = type.remoteEvents,
+                )
+            }
+            is YourEventsFragmentType.DCC -> {
+                yourEventsViewModel.checkForConflictingEvents(
+                    remoteProtocols3 = type.remoteEvents,
+                )
+            }
+        }
+    }
+
+    override fun getFlow(): Flow {
+        when (val type = args.type) {
+            is YourEventsFragmentType.TestResult2 -> {
+                return HolderFlow.CommercialTest
+            }
+            is YourEventsFragmentType.DCC -> {
+                return HolderFlow.HkviScan
+            }
+            is YourEventsFragmentType.RemoteProtocol3Type -> {
+                return when (type.originType) {
+                    is OriginType.Test -> {
+                        HolderFlow.DigidTest
+                    }
+                    is OriginType.Recovery -> {
+                        HolderFlow.Recovery
+                    }
+                    is OriginType.Vaccination -> {
+                        HolderFlow.Vaccination
+                    }
+                }
+            }
+        }
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -97,30 +146,14 @@ class YourEventsFragment : Fragment(R.layout.fragment_your_events) {
                             YourEventsFragmentDirections.actionCouldNotCreateQr(
                                 toolbarTitle = args.toolbarTitle,
                                 title = getString(R.string.rule_engine_no_origin_title),
-                                description = getString(R.string.rule_engine_no_test_origin_description),
+                                description = getString(R.string.rule_engine_no_test_origin_description, args.toolbarTitle.toLowerCase(Locale.getDefault())),
                                 buttonTitle = getString(R.string.back_to_overview)
                             )
                         )
                     }
-                    is DatabaseSyncerResult.NetworkError -> {
-                        dialogUtil.presentDialog(
-                            context = requireContext(),
-                            title = R.string.dialog_no_internet_connection_title,
-                            message = getString(R.string.dialog_no_internet_connection_description),
-                            positiveButtonText = R.string.dialog_close,
-                            positiveButtonCallback = {}
-                        )
-                    }
-                    is DatabaseSyncerResult.ServerError -> {
-                        dialogUtil.presentDialog(
-                            context = requireContext(),
-                            title = R.string.dialog_error_title,
-                            message = getString(
-                                R.string.dialog_error_message_with_error_code,
-                                databaseSyncerResult.httpCode.toString()
-                            ),
-                            positiveButtonText = R.string.dialog_close,
-                            positiveButtonCallback = {}
+                    is DatabaseSyncerResult.Failed -> {
+                        presentError(
+                            errorResult = databaseSyncerResult.errorResult
                         )
                     }
                 }
@@ -506,24 +539,7 @@ class YourEventsFragment : Fragment(R.layout.fragment_your_events) {
 
     private fun handleButton(binding: FragmentYourEventsBinding) {
         binding.bottom.setButtonClick {
-            when (val type = args.type) {
-                is YourEventsFragmentType.TestResult2 -> {
-                    yourEventsViewModel.saveNegativeTest2(
-                        negativeTest2 = type.remoteTestResult,
-                        rawResponse = type.rawResponse
-                    )
-                }
-                is YourEventsFragmentType.RemoteProtocol3Type -> {
-                    yourEventsViewModel.checkForConflictingEvents(
-                        remoteProtocols3 = type.remoteEvents,
-                    )
-                }
-                is YourEventsFragmentType.DCC -> {
-                    yourEventsViewModel.checkForConflictingEvents(
-                        remoteProtocols3 = type.remoteEvents,
-                    )
-                }
-            }
+            onButtonClickWithRetryAction()
         }
     }
 

@@ -76,6 +76,8 @@ class VerifierMainActivity : AppCompatActivity(), SerialInputOutputManager.Liste
     private var qrCode = ""
     private var loading = false
 
+    var statusListener: ((Boolean, String) -> Unit)? = null
+
     init {
         broadcastReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
@@ -101,17 +103,6 @@ class VerifierMainActivity : AppCompatActivity(), SerialInputOutputManager.Liste
         setProductionFlags()
 
         observeStatuses()
-
-        val manager = getSystemService(USB_SERVICE) as UsbManager
-        val custom = getCustomProber().findAllDrivers(manager)
-        if (custom.isNotEmpty()) {
-            deviceId = custom[0].device.deviceId
-            portNum = custom[0].ports[0].portNumber
-            baudRate = 115200
-            withIoManager = true
-        } else {
-            Toast.makeText(this, "Geen usb barcode scanner gevonden. Start de app opnieuw op nadat je verbonden bent.", Toast.LENGTH_LONG).show()
-        }
     }
 
     private fun observeStatuses() {
@@ -169,10 +160,7 @@ class VerifierMainActivity : AppCompatActivity(), SerialInputOutputManager.Liste
     }
 
     override fun onPause() {
-        if (connected) {
-            status("disconnected")
-            disconnect()
-        }
+        disconnectFromExternalBarcode()
         unregisterReceiver(broadcastReceiver)
         super.onPause()
     }
@@ -182,9 +170,7 @@ class VerifierMainActivity : AppCompatActivity(), SerialInputOutputManager.Liste
         loading = false
         qrCode = ""
         registerReceiver(broadcastReceiver, IntentFilter(INTENT_ACTION_GRANT_USB))
-        if (usbPermission == UsbPermission.Unknown || usbPermission == UsbPermission.Granted) {
-            mainLooper?.post { connect() }
-        }
+        connectWithExternalBarcode()
     }
 
     override fun onStart() {
@@ -253,7 +239,7 @@ class VerifierMainActivity : AppCompatActivity(), SerialInputOutputManager.Liste
         Timber.e("startUsbDevice - onRunError")
 
         mainLooper?.post {
-            status("connection lost: " + e!!.message)
+            status(false, "Verbinding mislukt: ${e?.message}")
             disconnect()
         }
     }
@@ -266,15 +252,27 @@ class VerifierMainActivity : AppCompatActivity(), SerialInputOutputManager.Liste
      * Serial + UI
      */
     private fun connect() {
-        var device: UsbDevice? = null
         val usbManager = getSystemService(USB_SERVICE) as UsbManager
+        if(deviceId <= 0) {
+            val custom = getCustomProber().findAllDrivers(usbManager)
+            if (custom.isNotEmpty()) {
+                deviceId = custom[0].device.deviceId
+                portNum = custom[0].ports[0].portNumber
+                baudRate = 115200
+                withIoManager = true
+            } else {
+                Toast.makeText(this, "Geen usb barcode scanner gevonden. Klik op de knop rechtsboven.", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        var device: UsbDevice? = null
         for (v in usbManager.deviceList.values) {
             if (v.deviceId == deviceId) {
                 device = v
             }
         }
         if (device == null) {
-            status("connection failed: device not found")
+            status(false, "Verbinding mislukt: geen device gevonden")
             return
         }
         var driver = UsbSerialProber.getDefaultProber().probeDevice(device)
@@ -282,11 +280,11 @@ class VerifierMainActivity : AppCompatActivity(), SerialInputOutputManager.Liste
             driver = getCustomProber().probeDevice(device)
         }
         if (driver == null) {
-            status("connection failed: no driver for device")
+            status(false, "Verbinding mislukt: geen driver gevonden voor dit device")
             return
         }
         if (driver.ports.size < portNum) {
-            status("connection failed: not enough ports at device")
+            status(false, "Verbinding mislukt: niet genoeg porten voor dit device. Start het opnieuw op.")
             return
         }
         usbSerialPort = driver.ports[portNum]
@@ -306,9 +304,11 @@ class VerifierMainActivity : AppCompatActivity(), SerialInputOutputManager.Liste
             return
         }
         if (usbConnection == null) {
-            if (!usbManager.hasPermission(driver.device)) status("connection failed: permission denied") else status(
-                "connection failed: open failed"
-            )
+            if (!usbManager.hasPermission(driver.device)) {
+                status(false,"Verbinding mislukt: geen toestemming. Start de app opnieuw op.")
+            } else {
+                status(false,"Verbinding mislukt: kon niet verbinden. Start de app opnieuw op.")
+            }
             return
         }
         try {
@@ -319,10 +319,10 @@ class VerifierMainActivity : AppCompatActivity(), SerialInputOutputManager.Liste
                     start()
                 }
             }
-            status("connected")
+            status(true, "Verbonden")
             connected = true
         } catch (e: Exception) {
-            status("connection failed: " + e.message)
+            status(false, "Verbinding mislukt: ${e.message}")
             disconnect()
         }
     }
@@ -359,7 +359,23 @@ class VerifierMainActivity : AppCompatActivity(), SerialInputOutputManager.Liste
         }
     }
 
-    private fun status(str: String) {
-        Timber.e("Status: $str")
+    private fun status(connected: Boolean, message: String) {
+        Timber.e("Status: $message")
+        statusListener?.invoke(connected, message)
+    }
+
+    fun hasConnectionWithExternalBarcode(): Boolean {
+        return connected
+    }
+
+    fun connectWithExternalBarcode() {
+        mainLooper?.post { connect() }
+    }
+
+    fun disconnectFromExternalBarcode(){
+        if (connected) {
+            status(false, "Verbinding verbroken")
+            disconnect()
+        }
     }
 }

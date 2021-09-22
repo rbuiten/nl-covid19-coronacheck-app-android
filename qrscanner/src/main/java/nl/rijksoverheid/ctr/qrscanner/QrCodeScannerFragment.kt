@@ -59,12 +59,12 @@ abstract class QrCodeScannerFragment : Fragment(R.layout.fragment_scanner) {
             if (isAdded) {
                 if (isCameraPermissionGranted()) {
                     setUpScanner(forceCamera = true)
-                } else {
+                } /*else {
                     val rationaleDialog = getCopy().rationaleDialog
                     if (shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) && rationaleDialog != null) {
                         showRationaleDialog(rationaleDialog)
                     }
-                }
+                }*/
             }
         }
 
@@ -175,9 +175,9 @@ abstract class QrCodeScannerFragment : Fragment(R.layout.fragment_scanner) {
     }
 
     private fun requestPermission() {
-        requestPermissionLauncher.launch(
+        /*requestPermissionLauncher.launch(
             Manifest.permission.CAMERA
-        )
+        )*/
     }
 
     private fun bindCameraUseCases(
@@ -389,9 +389,9 @@ abstract class QrCodeScannerFragment : Fragment(R.layout.fragment_scanner) {
                 .setTitle(rationaleDialog.title)
                 .setMessage(rationaleDialog.description)
                 .setPositiveButton(rationaleDialog.okayButtonText) { dialog, which ->
-                    requestPermission()
+                    //requestPermission()
                 }
-                .show()
+                //.show()
         }
     }
 

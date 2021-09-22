@@ -18,7 +18,7 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
  *   SPDX-License-Identifier: EUPL-1.2
  *
  */
-class ScanQrFragment : Fragment(R.layout.fragment_scan_external_qr) {
+class ScanQrFragment : Fragment(R.layout.fragment_scan_qr) {
 
     private val scanQrViewModel: ScanQrViewModel by viewModel()
     private val scannerUtil: ScannerUtil by inject()

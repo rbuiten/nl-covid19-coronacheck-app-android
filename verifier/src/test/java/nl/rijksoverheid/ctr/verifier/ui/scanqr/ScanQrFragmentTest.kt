@@ -89,7 +89,7 @@ class ScanQrFragmentTest : AutoCloseKoinTest() {
         )
 
         launchFragmentInContainer(themeResId = R.style.AppTheme) {
-            ScanQrFragment().also {
+            StartExternalQrFragment().also {
                 it.viewLifecycleOwnerLiveData.observeForever { viewLifecycleOwner ->
                     if (viewLifecycleOwner != null) {
                         Navigation.setViewNavController(it.requireView(), navController)

@@ -4,13 +4,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import nl.rijksoverheid.ctr.holder.HolderStep
 import nl.rijksoverheid.ctr.holder.persistence.database.entities.*
 import nl.rijksoverheid.ctr.holder.persistence.database.usecases.*
 import nl.rijksoverheid.ctr.holder.ui.create_qr.util.GreenCardUtil
-import nl.rijksoverheid.ctr.shared.models.AppErrorResult
 import nl.rijksoverheid.ctr.shared.models.ErrorResult
 import nl.rijksoverheid.ctr.shared.models.NetworkRequestResult
+import java.time.OffsetDateTime
 
 /*
  *  Copyright (c) 2021 De Staat der Nederlanden, Ministerie van Volksgezondheid, Welzijn en Sport.
@@ -25,26 +24,37 @@ interface HolderDatabaseSyncer {
      * Synchronized the database. Does cleanup in the database based on expiration dates and can resync with remote
      * @param expectedOriginType If not null checks if the remote credentials contain this origin. Will return [DatabaseSyncerResult.MissingOrigin] if it's not present.
      * @param syncWithRemote If true and the data call to resync succeeds, clear all green cards in the database and re-add them
+     * @param previousSyncResult The previous result outputted by this [sync] if known
      */
-    suspend fun sync(expectedOriginType: OriginType? = null, syncWithRemote: Boolean = true): DatabaseSyncerResult
+    suspend fun sync(
+        expectedOriginType: OriginType? = null,
+        syncWithRemote: Boolean = true,
+        previousSyncResult: DatabaseSyncerResult? = null): DatabaseSyncerResult
 }
 
 class HolderDatabaseSyncerImpl(
     private val holderDatabase: HolderDatabase,
     private val greenCardUtil: GreenCardUtil,
     private val getRemoteGreenCardsUseCase: GetRemoteGreenCardsUseCase,
-    private val syncRemoteGreenCardsUseCase: SyncRemoteGreenCardsUseCase
+    private val syncRemoteGreenCardsUseCase: SyncRemoteGreenCardsUseCase,
+    private val removeExpiredEventsUseCase: RemoveExpiredEventsUseCase
 ) : HolderDatabaseSyncer {
 
     private val mutex = Mutex()
 
     override suspend fun sync(
         expectedOriginType: OriginType?,
-        syncWithRemote: Boolean
+        syncWithRemote: Boolean,
+        previousSyncResult: DatabaseSyncerResult?
     ): DatabaseSyncerResult {
         return withContext(Dispatchers.IO) {
             mutex.withLock {
                 val events = holderDatabase.eventGroupDao().getAll()
+
+                // Clean up expired events in the database
+                removeExpiredEventsUseCase.execute(
+                    events = events
+                )
 
                 // Sync with remote
                 if (syncWithRemote && events.isNotEmpty()) {
@@ -60,17 +70,17 @@ class HolderDatabaseSyncerImpl(
                             if (expectedOriginType != null && !remoteGreenCards.getAllOrigins()
                                     .contains(expectedOriginType)
                             ) {
-                                return@withContext DatabaseSyncerResult.MissingOrigin
+                                return@withContext DatabaseSyncerResult.Success(missingOrigin = true)
                             }
 
                             // Insert green cards in database
                             val result = syncRemoteGreenCardsUseCase.execute(
-                                remoteGreenCards = remoteGreenCardsResult.remoteGreenCards
+                                remoteGreenCards = remoteGreenCards
                             )
 
                             when (result) {
                                 is SyncRemoteGreenCardsResult.Success -> {
-                                    return@withContext DatabaseSyncerResult.Success
+                                    return@withContext DatabaseSyncerResult.Success(false)
                                 }
                                 is SyncRemoteGreenCardsResult.Failed -> {
                                     return@withContext DatabaseSyncerResult.Failed.Error(result.errorResult)
@@ -81,7 +91,7 @@ class HolderDatabaseSyncerImpl(
                             val greenCards = holderDatabase.greenCardDao().getAll()
 
                             when (remoteGreenCardsResult.errorResult) {
-                                is NetworkRequestResult.Failed.NetworkError -> {
+                                is NetworkRequestResult.Failed.ClientNetworkError, is NetworkRequestResult.Failed.ServerNetworkError -> {
                                     DatabaseSyncerResult.Failed.NetworkError(
                                         errorResult = remoteGreenCardsResult.errorResult,
                                         hasGreenCardsWithoutCredentials = greenCards
@@ -89,9 +99,15 @@ class HolderDatabaseSyncerImpl(
                                     )
                                 }
                                 is NetworkRequestResult.Failed.CoronaCheckHttpError -> {
-                                    DatabaseSyncerResult.Failed.ServerError(
-                                        errorResult = remoteGreenCardsResult.errorResult
-                                    )
+                                    if (previousSyncResult == null) {
+                                        DatabaseSyncerResult.Failed.ServerError.FirstTime(
+                                            errorResult = remoteGreenCardsResult.errorResult
+                                        )
+                                    } else {
+                                        DatabaseSyncerResult.Failed.ServerError.MultipleTimes(
+                                            errorResult = remoteGreenCardsResult.errorResult
+                                        )
+                                    }
                                 }
                                 else -> {
                                     DatabaseSyncerResult.Failed.Error(
@@ -102,7 +118,7 @@ class HolderDatabaseSyncerImpl(
                         }
                     }
                 } else {
-                    DatabaseSyncerResult.Success
+                    previousSyncResult ?: DatabaseSyncerResult.Success(false)
                 }
             }
         }
@@ -110,12 +126,14 @@ class HolderDatabaseSyncerImpl(
 }
 
 sealed class DatabaseSyncerResult {
-    object Loading : DatabaseSyncerResult()
-    object Success : DatabaseSyncerResult()
-    object MissingOrigin : DatabaseSyncerResult()
-    sealed class Failed(open val errorResult: ErrorResult): DatabaseSyncerResult() {
-        data class NetworkError(override val errorResult: ErrorResult, val hasGreenCardsWithoutCredentials: Boolean): Failed(errorResult)
-        data class ServerError(override val errorResult: ErrorResult): Failed(errorResult)
-        data class Error(override val errorResult: ErrorResult): Failed(errorResult)
+    data class Success(val missingOrigin: Boolean = false) : DatabaseSyncerResult()
+
+    sealed class Failed(open val errorResult: ErrorResult, open val failedAt: OffsetDateTime): DatabaseSyncerResult() {
+        data class NetworkError(override val errorResult: ErrorResult, val hasGreenCardsWithoutCredentials: Boolean): Failed(errorResult, OffsetDateTime.now())
+        sealed class ServerError(override val errorResult: ErrorResult): Failed(errorResult, OffsetDateTime.now()) {
+            data class FirstTime(override val errorResult: ErrorResult) : ServerError(errorResult)
+            data class MultipleTimes(override val errorResult: ErrorResult) : ServerError(errorResult)
+        }
+        data class Error(override val errorResult: ErrorResult): Failed(errorResult, OffsetDateTime.now())
     }
 }

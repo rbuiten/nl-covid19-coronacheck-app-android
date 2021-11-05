@@ -3,10 +3,7 @@ package nl.rijksoverheid.ctr.holder.persistence.database
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
-import nl.rijksoverheid.ctr.holder.HolderStep
-import nl.rijksoverheid.ctr.holder.fakeGetRemoteGreenCardUseCase
-import nl.rijksoverheid.ctr.holder.fakeGreenCardUtil
-import nl.rijksoverheid.ctr.holder.fakeSyncRemoteGreenCardUseCase
+import nl.rijksoverheid.ctr.holder.*
 import nl.rijksoverheid.ctr.holder.persistence.database.dao.EventGroupDao
 import nl.rijksoverheid.ctr.holder.persistence.database.dao.GreenCardDao
 import nl.rijksoverheid.ctr.holder.persistence.database.entities.EventGroupEntity
@@ -59,7 +56,8 @@ class HolderDatabaseSyncerImplTest {
                     originType = OriginType.Test
                 )
             ),
-            syncRemoteGreenCardsUseCase = fakeSyncRemoteGreenCardUseCase()
+            syncRemoteGreenCardsUseCase = fakeSyncRemoteGreenCardUseCase(),
+            removeExpiredEventsUseCase = fakeRemoveExpiredEventsUseCase()
         )
 
         val databaseSyncerResult = holderDatabaseSyncer.sync(
@@ -67,7 +65,7 @@ class HolderDatabaseSyncerImplTest {
             syncWithRemote = true
         )
 
-        assertEquals(DatabaseSyncerResult.Success, databaseSyncerResult)
+        assertEquals(DatabaseSyncerResult.Success(), databaseSyncerResult)
     }
 
     @Test
@@ -82,7 +80,8 @@ class HolderDatabaseSyncerImplTest {
                     originType = OriginType.Test
                 )
             ),
-            syncRemoteGreenCardsUseCase = fakeSyncRemoteGreenCardUseCase()
+            syncRemoteGreenCardsUseCase = fakeSyncRemoteGreenCardUseCase(),
+            removeExpiredEventsUseCase = fakeRemoveExpiredEventsUseCase()
         )
 
         val databaseSyncerResult = holderDatabaseSyncer.sync(
@@ -90,11 +89,11 @@ class HolderDatabaseSyncerImplTest {
             syncWithRemote = true
         )
 
-        assertEquals(DatabaseSyncerResult.Success, databaseSyncerResult)
+        assertEquals(DatabaseSyncerResult.Success(), databaseSyncerResult)
     }
 
     @Test
-    fun `sync returns MissingOrigin if returned origins do not match expected origin`() = runBlocking {
+    fun `sync returns Success with missingOrigin if returned origins do not match expected origin`() = runBlocking {
         coEvery { eventGroupDao.getAll() } answers { events }
 
         val holderDatabaseSyncer = HolderDatabaseSyncerImpl(
@@ -116,7 +115,8 @@ class HolderDatabaseSyncerImplTest {
                     )
                 )
             ),
-            syncRemoteGreenCardsUseCase = fakeSyncRemoteGreenCardUseCase()
+            syncRemoteGreenCardsUseCase = fakeSyncRemoteGreenCardUseCase(),
+            removeExpiredEventsUseCase = fakeRemoveExpiredEventsUseCase()
         )
 
         val databaseSyncerResult = holderDatabaseSyncer.sync(
@@ -124,7 +124,7 @@ class HolderDatabaseSyncerImplTest {
             syncWithRemote = true
         )
 
-        assertEquals(DatabaseSyncerResult.MissingOrigin, databaseSyncerResult)
+        assertEquals(DatabaseSyncerResult.Success(true), databaseSyncerResult)
     }
 
     @Test
@@ -136,10 +136,11 @@ class HolderDatabaseSyncerImplTest {
             holderDatabase = holderDatabase,
             greenCardUtil = fakeGreenCardUtil(),
             getRemoteGreenCardsUseCase = fakeGetRemoteGreenCardUseCase(
-                result = RemoteGreenCardsResult.Error(NetworkRequestResult.Failed.NetworkError(Step(1), IllegalStateException("Some error")))),
+                result = RemoteGreenCardsResult.Error(NetworkRequestResult.Failed.ServerNetworkError(Step(1), IllegalStateException("Some error")))),
             syncRemoteGreenCardsUseCase = fakeSyncRemoteGreenCardUseCase(
                 result = SyncRemoteGreenCardsResult.Success
-            )
+            ),
+            removeExpiredEventsUseCase = fakeRemoveExpiredEventsUseCase()
         )
 
         val databaseSyncerResult = holderDatabaseSyncer.sync(
@@ -166,7 +167,8 @@ class HolderDatabaseSyncerImplTest {
                 )))),
             syncRemoteGreenCardsUseCase = fakeSyncRemoteGreenCardUseCase(
                 result = SyncRemoteGreenCardsResult.Success
-            )
+            ),
+            removeExpiredEventsUseCase = fakeRemoveExpiredEventsUseCase()
         )
 
         val databaseSyncerResult = holderDatabaseSyncer.sync(
@@ -189,7 +191,8 @@ class HolderDatabaseSyncerImplTest {
                 result = RemoteGreenCardsResult.Error(NetworkRequestResult.Failed.Error(Step(1), IllegalStateException("Some error")))),
             syncRemoteGreenCardsUseCase = fakeSyncRemoteGreenCardUseCase(
                 result = SyncRemoteGreenCardsResult.Success
-            )
+            ),
+            removeExpiredEventsUseCase = fakeRemoveExpiredEventsUseCase()
         )
 
         val databaseSyncerResult = holderDatabaseSyncer.sync(
@@ -225,7 +228,8 @@ class HolderDatabaseSyncerImplTest {
             ),
             syncRemoteGreenCardsUseCase = fakeSyncRemoteGreenCardUseCase(
                 result = SyncRemoteGreenCardsResult.Failed(AppErrorResult(Step(1), IllegalStateException("Some error")))
-            )
+            ),
+            removeExpiredEventsUseCase = fakeRemoveExpiredEventsUseCase()
         )
 
         val databaseSyncerResult = holderDatabaseSyncer.sync(

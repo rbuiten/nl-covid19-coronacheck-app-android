@@ -11,18 +11,21 @@ package nl.rijksoverheid.ctr.holder.ui.create_qr
 import android.os.Bundle
 import android.view.View
 import androidx.activity.OnBackPressedCallback
+import androidx.core.view.forEach
+import androidx.core.view.forEachIndexed
 import androidx.navigation.fragment.navArgs
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import nl.rijksoverheid.ctr.design.ext.formatDateTime
 import nl.rijksoverheid.ctr.design.ext.formatDayMonthYear
 import nl.rijksoverheid.ctr.design.ext.formatMonth
+import nl.rijksoverheid.ctr.design.utils.BottomSheetData
+import nl.rijksoverheid.ctr.design.utils.BottomSheetDialogUtil
 import nl.rijksoverheid.ctr.design.utils.DialogUtil
 import nl.rijksoverheid.ctr.holder.BaseFragment
 import nl.rijksoverheid.ctr.holder.HolderFlow
 import nl.rijksoverheid.ctr.holder.HolderMainFragment
 import nl.rijksoverheid.ctr.holder.R
 import nl.rijksoverheid.ctr.holder.databinding.FragmentYourEventsBinding
-import nl.rijksoverheid.ctr.holder.persistence.CachedAppConfigUseCase
 import nl.rijksoverheid.ctr.holder.persistence.database.DatabaseSyncerResult
 import nl.rijksoverheid.ctr.holder.persistence.database.entities.OriginType
 import nl.rijksoverheid.ctr.holder.ui.create_qr.items.YourEventWidget
@@ -42,23 +45,30 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
-import java.util.*
 
 class YourEventsFragment : BaseFragment(R.layout.fragment_your_events) {
 
     private val args: YourEventsFragmentArgs by navArgs()
 
-    private val cachedAppConfigUseCase: CachedAppConfigUseCase by inject()
     private val personalDetailsUtil: PersonalDetailsUtil by inject()
     private val infoScreenUtil: InfoScreenUtil by inject()
     private val dialogUtil: DialogUtil by inject()
+    private val bottomSheetDialogUtil: BottomSheetDialogUtil by inject()
 
     private val remoteProtocol3Util: RemoteProtocol3Util by inject()
     private val remoteEventUtil: RemoteEventUtil by inject()
 
     private val yourEventsViewModel: YourEventsViewModel by viewModel()
 
+    override fun onButtonClickWithRetryTitle(): Int {
+        return R.string.dialog_retry
+    }
+
     override fun onButtonClickWithRetryAction() {
+        navigateSafety(YourEventsFragmentDirections.actionMyOverview())
+    }
+
+    private fun retrieveGreenCards() {
         when (val type = args.type) {
             is YourEventsFragmentType.TestResult2 -> {
                 yourEventsViewModel.saveNegativeTest2(
@@ -90,7 +100,11 @@ class YourEventsFragment : BaseFragment(R.layout.fragment_your_events) {
             is YourEventsFragmentType.RemoteProtocol3Type -> {
                 return when (type.originType) {
                     is OriginType.Test -> {
-                        HolderFlow.DigidTest
+                        if (type.fromCommercialTestCode) {
+                            HolderFlow.CommercialTest
+                        } else {
+                            HolderFlow.DigidTest
+                        }
                     }
                     is OriginType.Recovery -> {
                         HolderFlow.Recovery
@@ -129,6 +143,10 @@ class YourEventsFragment : BaseFragment(R.layout.fragment_your_events) {
         yourEventsViewModel.loading.observe(viewLifecycleOwner, EventObserver {
             (parentFragment?.parentFragment as HolderMainFragment).presentLoading(it)
             binding.bottom.setButtonEnabled(!it)
+            binding.eventsGroup.forEachIndexed { index, _ ->
+                val eventGroup = binding.eventsGroup.getChildAt(index) as YourEventWidget
+                eventGroup.setButtonsEnabled(!it)
+            }
         })
 
         yourEventsViewModel.yourEventsResult.observe(
@@ -136,20 +154,21 @@ class YourEventsFragment : BaseFragment(R.layout.fragment_your_events) {
             EventObserver { databaseSyncerResult ->
                 when (databaseSyncerResult) {
                     is DatabaseSyncerResult.Success -> {
-                        // We have a origin in the database that we expect, so success
-                        navigateSafety(
-                            YourEventsFragmentDirections.actionMyOverview()
-                        )
-                    }
-                    is DatabaseSyncerResult.MissingOrigin -> {
-                        navigateSafety(
-                            YourEventsFragmentDirections.actionCouldNotCreateQr(
-                                toolbarTitle = args.toolbarTitle,
-                                title = getString(R.string.rule_engine_no_origin_title),
-                                description = getString(R.string.rule_engine_no_test_origin_description, args.toolbarTitle.toLowerCase(Locale.getDefault())),
-                                buttonTitle = getString(R.string.back_to_overview)
+                        if (databaseSyncerResult.missingOrigin) {
+                            navigateSafety(
+                                YourEventsFragmentDirections.actionCouldNotCreateQr(
+                                    toolbarTitle = args.toolbarTitle,
+                                    title = getString(R.string.rule_engine_no_origin_title),
+                                    description = getString(R.string.rule_engine_no_test_origin_description, args.toolbarTitle.lowercase()),
+                                    buttonTitle = getString(R.string.back_to_overview)
+                                )
                             )
-                        )
+                        } else {
+                            // We have a origin in the database that we expect, so success
+                            navigateSafety(
+                                YourEventsFragmentDirections.actionMyOverview()
+                            )
+                        }
                     }
                     is DatabaseSyncerResult.Failed -> {
                         presentError(
@@ -264,6 +283,13 @@ class YourEventsFragment : BaseFragment(R.layout.fragment_your_events) {
         }
     }
 
+    private fun getProviderName(providerIdentifier: String): String {
+        return (args.type as? YourEventsFragmentType.RemoteProtocol3Type)
+            ?.eventProviders?.firstOrNull { it.identifier == providerIdentifier }
+            ?.name
+            ?: providerIdentifier
+    }
+
     private fun presentEvents(
         remoteEvents: Map<RemoteProtocol3, ByteArray>,
         binding: FragmentYourEventsBinding,
@@ -275,7 +301,7 @@ class YourEventsFragment : BaseFragment(R.layout.fragment_your_events) {
 
         groupedEvents.forEach { protocolGroupedEvent ->
             val holder = protocolGroupedEvent.value.firstOrNull()?.holder
-            val providerIdentifiers = protocolGroupedEvent.value.map { it.providerIdentifier }.map { cachedAppConfigUseCase.getProviderName(it) }
+            val providerIdentifiers = protocolGroupedEvent.value.map { it.providerIdentifier }.map { getProviderName(it) }
             val allSameEvents = protocolGroupedEvent.value.map { it.remoteEvent }
             val allEventsInformation = protocolGroupedEvent.value.map { RemoteEventInformation(it.providerIdentifier, holder, it.remoteEvent) }
             remoteEventUtil.removeDuplicateEvents(allSameEvents).forEach { remoteEvent ->
@@ -403,7 +429,7 @@ class YourEventsFragment : BaseFragment(R.layout.fragment_your_events) {
                                     event = vaccinationEvent,
                                     fullName = fullName,
                                     birthDate = birthDate,
-                                    providerIdentifier = cachedAppConfigUseCase.getProviderName(it.providerIdentifier),
+                                    providerIdentifier = getProviderName(it.providerIdentifier),
                                 )
                             }.toTypedArray()
                         )
@@ -539,17 +565,26 @@ class YourEventsFragment : BaseFragment(R.layout.fragment_your_events) {
 
     private fun handleButton(binding: FragmentYourEventsBinding) {
         binding.bottom.setButtonClick {
-            onButtonClickWithRetryAction()
+            retrieveGreenCards()
         }
     }
 
     private fun presentFooter(binding: FragmentYourEventsBinding) {
         binding.somethingWrongButton.setOnClickListener {
-            navigateSafety(
-                YourEventsFragmentDirections.actionShowSomethingWrong(
-                    protocolType = args.type
-                )
-            )
+            bottomSheetDialogUtil.present(childFragmentManager, BottomSheetData.TitleDescription(
+                title = getString(R.string.dialog_negative_test_result_something_wrong_title),
+                applyOnDescription = {
+                    val type = args.type
+                    it.setHtmlText(
+                        htmlText = if (type is YourEventsFragmentType.RemoteProtocol3Type && type.originType is OriginType.Vaccination) {
+                                R.string.dialog_vaccination_something_wrong_description
+                            } else {
+                                R.string.dialog_negative_test_result_something_wrong_description
+                            },
+                        htmlLinksEnabled = true,
+                    )
+                }
+            ))
         }
     }
 
@@ -595,4 +630,9 @@ class YourEventsFragment : BaseFragment(R.layout.fragment_your_events) {
                 ""
             }
         } ?: ""
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        (parentFragment?.parentFragment as HolderMainFragment).presentLoading(false)
+    }
 }

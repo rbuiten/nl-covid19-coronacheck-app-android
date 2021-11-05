@@ -1,7 +1,6 @@
 package nl.rijksoverheid.ctr.holder.persistence
 
 import android.content.SharedPreferences
-import nl.rijksoverheid.ctr.holder.persistence.database.entities.GreenCardType
 
 /*
  *  Copyright (c) 2021 De Staat der Nederlanden, Ministerie van Volksgezondheid, Welzijn en Sport.
@@ -20,10 +19,16 @@ interface PersistenceManager {
     fun setHasSeenCameraRationale(hasSeen: Boolean)
     fun hasDismissedRootedDeviceDialog(): Boolean
     fun setHasDismissedRootedDeviceDialog()
-    fun getSelectedGreenCardType(): GreenCardType
-    fun setSelectedGreenCardType(greenCardType: GreenCardType)
+    fun getSelectedDashboardTab(): Int
+    fun setSelectedDashboardTab(position: Int)
     fun hasAppliedJune28Fix(): Boolean
     fun setJune28FixApplied(applied: Boolean)
+    fun hasDismissedUnsecureDeviceDialog(): Boolean
+    fun setHasDismissedUnsecureDeviceDialog(value : Boolean)
+    fun hasDismissedSyncedGreenCardsItem(): Boolean
+    fun setHasDismissedSyncedGreenCardsItem(dismissed: Boolean)
+    fun showSyncGreenCardsItem(): Boolean
+    fun setShowSyncGreenCardsItem(show: Boolean)
 }
 
 class SharedPreferencesPersistenceManager(
@@ -36,8 +41,11 @@ class SharedPreferencesPersistenceManager(
         const val CREDENTIALS = "CREDENTIALS"
         const val HAS_SEEN_CAMERA_RATIONALE = "HAS_SEEN_CAMERA_RATIONALE"
         const val HAS_SEEN_ROOTED_DEVICE_DIALOG = "HAS_SEEN_ROOTED_DEVICE_DIALOG"
-        const val SELECTED_GREEN_CARD_TYPE = "SELECTED_GREEN_CARD_TYPE"
         const val FIX28JUNE_APPLIED = "FIX_28_JUNE_APPLIED"
+        const val SELECTED_DASHBOARD_TAB = "SELECTED_DASHBOARD_TAB"
+        const val HAS_SEEN_SECURE_DEVICE_DIALOG = "HAS_SEEN_SECURE_DEVICE_DIALOG"
+        const val HAS_DISMISSED_SYNCED_GREEN_CARDS_ITEM = "HAS_DISMISSED_SYNCED_GREEN_CARDS_ITEM"
+        const val SHOW_SYNC_GREEN_CARDS_ITEM = "SHOW_SYNC_GREEN_CARDS_ITEM"
     }
 
     override fun saveSecretKeyJson(json: String) {
@@ -93,23 +101,14 @@ class SharedPreferencesPersistenceManager(
         }
     }
 
-    override fun getSelectedGreenCardType(): GreenCardType {
-        val type = sharedPreferences.getString(SELECTED_GREEN_CARD_TYPE, GreenCardType.TYPE_DOMESTIC)
-        return if (type == GreenCardType.TYPE_DOMESTIC) {
-            GreenCardType.Domestic
-        } else {
-            GreenCardType.Eu
-        }
+    override fun getSelectedDashboardTab(): Int {
+        return sharedPreferences.getInt(SELECTED_DASHBOARD_TAB, 0)
     }
 
-    override fun setSelectedGreenCardType(greenCardType: GreenCardType) {
-        val typeString = when (greenCardType) {
-            is GreenCardType.Domestic -> GreenCardType.TYPE_DOMESTIC
-            is GreenCardType.Eu -> GreenCardType.TYPE_EU
-        }
-        val result = sharedPreferences.edit().putString(SELECTED_GREEN_CARD_TYPE, typeString).commit()
+    override fun setSelectedDashboardTab(position: Int) {
+        val result = sharedPreferences.edit().putInt(SELECTED_DASHBOARD_TAB, position).commit()
         if (!result) {
-            throw IllegalStateException("Failed to set selected green card type in shared preference")
+            throw IllegalStateException("Failed to set selected dashboard tab in shared preference")
         }
     }
 
@@ -122,6 +121,42 @@ class SharedPreferencesPersistenceManager(
             sharedPreferences.edit().putBoolean(FIX28JUNE_APPLIED, applied).commit()
         if (!result) {
             throw IllegalStateException("Failed to set that the june 28 fix has been applied in shared preferences")
+        }
+    }
+
+    override fun hasDismissedUnsecureDeviceDialog(): Boolean {
+        return sharedPreferences.getBoolean(HAS_SEEN_SECURE_DEVICE_DIALOG, false)
+    }
+
+    override fun setHasDismissedUnsecureDeviceDialog(value : Boolean) {
+        val result =
+            sharedPreferences.edit().putBoolean(HAS_SEEN_SECURE_DEVICE_DIALOG, value).commit()
+        if (!result) {
+            throw IllegalStateException("Failed to set secure device dialog has been seen in shared preference")
+        }
+    }
+
+    override fun hasDismissedSyncedGreenCardsItem(): Boolean {
+        return sharedPreferences.getBoolean(HAS_DISMISSED_SYNCED_GREEN_CARDS_ITEM, true)
+    }
+
+    override fun setHasDismissedSyncedGreenCardsItem(dismissed: Boolean) {
+        val result =
+            sharedPreferences.edit().putBoolean(HAS_DISMISSED_SYNCED_GREEN_CARDS_ITEM, dismissed).commit()
+        if (!result) {
+            throw IllegalStateException("Failed to set has dismissed synced green cards item in shared preference")
+        }
+    }
+
+    override fun showSyncGreenCardsItem(): Boolean {
+        return sharedPreferences.getBoolean(SHOW_SYNC_GREEN_CARDS_ITEM, true)
+    }
+
+    override fun setShowSyncGreenCardsItem(show: Boolean) {
+        val result =
+            sharedPreferences.edit().putBoolean(SHOW_SYNC_GREEN_CARDS_ITEM, show).commit()
+        if (!result) {
+            throw IllegalStateException("Failed to set show sync green cards item in shared preference")
         }
     }
 }

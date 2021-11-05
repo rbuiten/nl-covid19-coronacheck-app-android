@@ -6,6 +6,8 @@ import android.os.Looper
 import android.view.View
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.navArgs
+import nl.rijksoverheid.ctr.design.utils.BottomSheetData
+import nl.rijksoverheid.ctr.design.utils.BottomSheetDialogUtil
 import nl.rijksoverheid.ctr.shared.ext.navigateSafety
 import nl.rijksoverheid.ctr.verifier.R
 import nl.rijksoverheid.ctr.verifier.databinding.FragmentScanResultInvalidBinding
@@ -24,6 +26,7 @@ import java.util.concurrent.TimeUnit
 class ScanResultInvalidFragment : Fragment(R.layout.fragment_scan_result_invalid) {
     
     private val scannerUtil: ScannerUtil by inject()
+    private val bottomSheetDialogUtil: BottomSheetDialogUtil by inject()
 
     private val autoCloseHandler = Handler(Looper.getMainLooper())
     private val autoCloseRunnable = Runnable {
@@ -50,7 +53,12 @@ class ScanResultInvalidFragment : Fragment(R.layout.fragment_scan_result_invalid
             }
             is ScanResultInvalidData.Error -> {
                 binding.buttonExplanation.setOnClickListener {
-                    navigateSafety(ScanResultInvalidFragmentDirections.actionShowInvalidExplanation())
+                    bottomSheetDialogUtil.present(childFragmentManager, BottomSheetData.TitleDescription(
+                        title = getString(R.string.scan_result_invalid_reason_title),
+                        applyOnDescription = {
+                            it.setHtmlText(R.string.scan_result_invalid_reason_description)
+                        }
+                    ))
                 }
             }
         }

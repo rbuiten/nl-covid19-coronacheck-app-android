@@ -47,15 +47,17 @@
         app:layout_constraintTop_toBottomOf="@+id/row_title"
         tools:text="Dinsdag 2 februari 14:06" />
 
-    <com.google.android.material.textview.MaterialTextView
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/detailsButton"
-        android:clickable="false"
         style="@style/Widget.MaterialComponents.Button.TextButton"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="@string/your_events_details_button"
-        android:layout_marginStart="4dp"
+        android:layout_marginHorizontal="8dp"
+        android:clickable="false"
         android:focusable="false"
+        android:includeFontPadding="false"
+        android:minWidth="0dp"
+        android:text="@string/your_events_details_button"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/row_subtitle" />
 

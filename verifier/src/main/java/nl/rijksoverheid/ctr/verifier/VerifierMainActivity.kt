@@ -219,14 +219,6 @@ class VerifierMainActivity : AppCompatActivity(), SerialInputOutputManager.Liste
         connectWithExternalBarcode()
     }
 
-    override fun onStart() {
-        super.onStart()
-        // Only get app config on every app foreground when introduction is finished
-        if (introductionViewModel.getIntroductionStatus() is IntroductionStatus.IntroductionFinished) {
-            appStatusViewModel.refresh(mobileCoreWrapper)
-        }
-    }
-
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
 
         if (event.action == KeyEvent.ACTION_DOWN && !loading) {

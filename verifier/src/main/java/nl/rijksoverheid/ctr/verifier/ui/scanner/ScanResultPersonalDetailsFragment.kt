@@ -44,7 +44,7 @@ class ScanResultPersonalDetailsFragment :
     private val autoCloseRunnable = Runnable {
         navigateSafety(
             R.id.nav_scan_result_personal_details,
-            ScanResultPersonalDetailsFragmentDirections.actionNavMain()
+            ScanResultPersonalDetailsFragmentDirections.actionNavScanResultValid(args.validData)
         )
     }
 
@@ -57,11 +57,7 @@ class ScanResultPersonalDetailsFragment :
 
     override fun onResume() {
         super.onResume()
-        val autoCloseDuration = if (BuildConfig.FLAVOR == "tst") {
-            TimeUnit.SECONDS.toMillis(10)
-        } else {
-            TimeUnit.SECONDS.toMillis(240)
-        }
+        val autoCloseDuration = TimeUnit.SECONDS.toMillis(5)
         autoCloseHandler.postDelayed(autoCloseRunnable, autoCloseDuration)
     }
 

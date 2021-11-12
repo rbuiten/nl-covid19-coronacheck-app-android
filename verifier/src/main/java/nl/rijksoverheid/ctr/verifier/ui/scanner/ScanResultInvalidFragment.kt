@@ -94,7 +94,7 @@ class ScanResultInvalidFragment : Fragment(R.layout.fragment_scan_result_invalid
     private fun navigateToScanner() {
         navigateSafety(
             R.id.nav_scan_result_invalid,
-            ScanResultInvalidFragmentDirections.actionNavQrScanner()
+            ScanResultInvalidFragmentDirections.actionNavMain()
         )
     }
 
